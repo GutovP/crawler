@@ -1,9 +1,17 @@
 require('./polyfills');
 
-const genresUrlBase = 'https://www.imdb.com/search/title/?genres=';
+const urlBuilder = {
+  buildGenreUrl(genre, page) {
+    const url =
+      `http://www.imdb.com/search/title` +
+      `?genres=${genre}&view=advanced&page=${page}`;
+    return url;
+  },
+};
+
 const genres = [
-  'action',
   'animation',
+  'action',
   'fantasy',
   'comedy',
   'romance',
@@ -13,26 +21,64 @@ const genres = [
 ];
 
 require('./models/extentions');
+const printer = require('./utils/printer');
+const { getQueue } = require('./queue');
 
 const { parseGenre } = require('./parsers/genre.parser');
+const { parseMovie } = require('./parsers/movie.parser');
 
-const moviesIds = [];
+const movies = [];
 
-Promise.all(
-  genres.map((genre) => {
-    const url = genresUrlBase + genre;
-    return parseGenre(url).then((genre) => {
-      moviesIds.push(...genre.moviesIds);
-    });
-  })
-).then(() => {
-  console.log(moviesIds);
+const loadMovie = (q) => {
+  printer.print('.');
+  if (q.isEmpty()) {
+    return Promise.resolve();
+  }
+
+  const id = q.pop();
+  const url = 'http://www.imdb.com/title/' + id;
+  return parseMovie(url).then((movie) => {
+    movies.push(movie);
+    return loadMovie(q);
+  });
+};
+
+const loadMovies = (q) => {
+  const PARALEL_LOADS = 10;
+
+  return Promise.all(
+    Array.from({ length: PARALEL_LOADS }).map((_) => loadMovie(q))
+  );
+};
+
+const loadAll = () => {
+  const pagesCount = 15;
+  const queue = getQueue();
+  return Promise.all(
+    genres.map((genre) => {
+      return Promise.all(
+        Array.from({ length: pagesCount })
+          .map((_, index) => index + 1)
+          .map((page) => {
+            printer.printLine(`Loading ${genre} on page ${page}`);
+            const url = urlBuilder.buildGenreUrl(genre, page);
+            return Promise.resolve()
+              .then(() => parseGenre(url))
+              .then((g) => {
+                queue.push(...g.moviesIds);
+                // return loadMovies(queue);
+              });
+          })
+      );
+    })
+  ).then(() => {
+    return loadMovies(queue);
+  });
+};
+
+const start = new Date();
+loadAll().then(() => {
+  const end = new Date();
+  console.log(end - start);
+  console.log(movies.length);
 });
-
-/* Promise.all([
-  getMovieData('https://www.imdb.com/title/tt4154756/?ref_=adv_li_tt'),
-  getMovieData('https://www.imdb.com/title/tt0974015/?ref_=nm_flmg_act_7'),
-]).then(([m1, m2]) => {
-  console.log(m1);
-  console.log(m2);
-}); */
