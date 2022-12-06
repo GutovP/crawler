@@ -11,7 +11,7 @@
   "dependencies": {
     "@types/jquery": "^3.5.0",
     "@types/jsdom": "^16.2.3",
-    "isomorphic-fetch": "^2.2.1",
+    "isomorphic-fetch": "^3.0.0",
     "jquery": "^3.5.1",
     "jsdom": "^16.2.2"
   },
